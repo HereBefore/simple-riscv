@@ -44,6 +44,10 @@ wire signed		[`WordDataBus]	s_out  = $signed(out);		//有符号输出
 always @ (*)
 	begin
 		case (op)
+			`ALU_OP_LUI:
+				begin
+					out	= in_1;
+				end
 			`ALU_OP_AND:
 				begin
 					out	= in_0 & in_1;
