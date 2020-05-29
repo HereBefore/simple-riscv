@@ -26,6 +26,9 @@ module AHB2ROM
    output reg          HREADYOUT,			//传输结束标志
    output reg    [31:0] HRDATA				//读数据总线
    );
+   
+//the register HRDATA_reg is a constant and will be removed
+
 
 //   assign HREADYOUT = 1'b1; // Always ready	
 //   assign HREADYOUT = ~(HSEL & HREADY);			//片选与地址选通使能时就绪
@@ -33,72 +36,52 @@ module AHB2ROM
    // Memory Array
    reg  [`WordDataBus] memory[0:(2**(MEMWIDTH-2)-1)];		//[0:(2^(MEMWIDTH-2)-1)]
 
-/*
-initial
-begin
-    (*rom_style="block"*)	 $readmemh("code.hex", memory);	//初始化仿真程序
-end 
-*/
+
 
    // Registers to store Adress Phase Signals
-   reg  [31:0] hwdata_mask;
-   reg         we_write;
    reg		   we_read;
-   reg  [31:0] buf_hwaddr;
+   reg		   we_buf;
 
    // Sample the Address Phase   
    always @(posedge HCLK or posedge HRESETn)
    begin
       if(HRESETn == 1)
       begin
-         we_write <= 1'b0;
 		 we_read  <= 1'b0;
-         buf_hwaddr <= 32'h0;
       end
       else
          if(HREADY)
          begin
-            we_write <= HSEL & HWRITE & HTRANS[1];
-			we_read  <= HSEL & (~HWRITE) & HTRANS[1];
-            buf_hwaddr <= HADDR;
-   
-            casez (HSIZE[1:0])
-               2'b1?: hwdata_mask <=  32'hFFFFFFFF;                        // Word write
-               2'b01: hwdata_mask <= (32'h0000FFFF << (16 * HADDR[1]));    // Halfword write
-               2'b00: hwdata_mask <= (32'h000000FF << (8 * HADDR[1:0]));   // Byte write
-            endcase
+			
+
+			we_read <= HSEL & (~HWRITE) & HTRANS[1];
          end
    end
    
-   // Read and Write Memory
-   always @ (posedge HCLK)
+   // Read Memory   
+   always @ (posedge HCLK or posedge HRESETn)
    begin
-      if(we_write)
-		begin
-			 memory[buf_hwaddr[MEMWIDTH:2]] <= (HWDATA & hwdata_mask) | (HRDATA & ~hwdata_mask);
-			 we_write <= 1'b0;
-		end
+	  if (HRESETn == 1)
+	  begin
+		we_buf <= 1'b1;
+	  end
+      else 	begin
+		  if(we_read)
+			begin
+				 HRDATA <= memory[HADDR[MEMWIDTH:2]];
+				 if (we_buf == 1'b0)
+					we_buf <= 1'b1;
+				 else 
+					we_buf <= 1'b0;
+			end
+	  end
    end
-   
-   always @ (posedge HCLK)
-   begin
-      if(we_read)
-		begin
-			 HRDATA = memory[HADDR[MEMWIDTH:2]];
-			 we_read <= 1'b0;
-		end
-   end
-   
    
   always @(posedge HCLK)
 	begin
 		if(HWRITE == 1'b0)
 			begin
-				HREADYOUT <= ~(HSEL & we_read);
-			end
-		else
-			begin
-				HREADYOUT <= ~(HSEL & we_write);
+				HREADYOUT <= ~(HSEL & we_read & we_buf);
 			end
 	end
 
